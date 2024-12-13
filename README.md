@@ -17,7 +17,7 @@ If you find this work useful in your research, please kindly consider citing:
   year={2025}
 }
 ```
-### Prepare Data
+### Prepare Data and Env
 
 Directly download our preprocessed data:
 - [train_data](https://drive.google.com/file/d/1u2I18NfBUTBZY_gUmlXWcoibaLyPy1WT/view?usp=sharing) and [test_data](https://drive.google.com/file/d/1yMX5gMmj3npBUN8lzQx7gHe6MBlTj9oX/view?usp=sharing) into the `./data/` directory.
@@ -31,6 +31,7 @@ python download_data.py --index-dir ./idx_dir --output-dir ./data_raw --vocab-fi
 ```
 Then, create your own train data and test data. Note that, downloading the whole data could easily test the Table 6 in the main paper.
 
+When prepare environment, please refer to requirements.txt, and note that datasets=2.16.0 is essential.
 ### Pretrain Models
 
 Run the baseline model (last lline in Table 1 in the main paper) (6 layers, 256 dimensions, use mvc, use weighted sampling, cls as cell feature, log1p preprocess) with the following command:
