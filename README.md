@@ -31,7 +31,14 @@ python download_data.py --index-dir ./idx_dir --output-dir ./data_raw --vocab-fi
 ```
 Then, create your own train data and test data. Note that, downloading the whole data could easily test the Table 6 in the main paper.
 
-When prepare environment, please refer to requirements.txt, and note that datasets=2.16.0 is essential.
+When prepare environment, please install the suitable version of pytorch (the default is 2.3.1) and refer to requirements.txt to install others, and note that datasets=2.16.0 is essential.
+
+For example, for CUDA 12.4:
+```
+pip install torch==2.3.1+cu124 torchvision==0.15.1+cu124 torchaudio==2.3.1 -f https://download.pytorch.org/whl/cu124/torch_stable.html
+pip install -r requirements.txt
+```
+for further prepare your data, please refer to scGPT to set your environment.
 ### Pretrain Models
 
 Run the baseline model (last lline in Table 1 in the main paper) (6 layers, 256 dimensions, use mvc, use weighted sampling, cls as cell feature, log1p preprocess) with the following command:
