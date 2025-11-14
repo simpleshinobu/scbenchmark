@@ -2,8 +2,11 @@
 
 This repository is the PyTorch implementation for AAAI 2025 Paper 
 "A Comprehensive and Simple Benchmark for Single-Cell Transcriptomics",
+
 BIBM 2025 Paper "Graph Neural Networks as a Substitute for Transformers in Single-Cell Transcriptomics"
+
 and AAAI 2026 Paper "Gene Incremental Learning for Single-Cell Transcriptomics"
+
 For detailed information, please refer to our [paper](https://ojs.aaai.org/index.php/AAAI/article/view/32049).
 
 Note that this repository is based on the [scGPT](https://github.com/bowang-lab/scGPT), especially the data downloading and preprocessing part.
