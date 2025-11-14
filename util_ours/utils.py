@@ -11,6 +11,152 @@ from collections import Counter, OrderedDict
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 import os
 import re
+import random
+import numpy as np
+from collections import defaultdict
+def set_seed(seed):
+    """set random seed."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+def select_exclude_1102(args, is_main_process=None, print_eli=True):
+    all_counts = torch.load("analysis/imp_genes4cls.torch")
+    selected_datasets = args.filter_names
+    exclude_idx = []
+    exclude_idx_origin = []
+    dataset_counts = []
+    for dataset in selected_datasets:
+        if dataset in all_counts:
+            templist = all_counts[dataset]
+            tensor_list = torch.tensor(templist)
+            _, sorted_indices = torch.sort(tensor_list, descending=True)
+            filtered_indices = [idx for idx in sorted_indices.tolist()]
+            top_indices = filtered_indices[:args.select_idxnum]
+            exclude_idx.append(top_indices)
+            exclude_idx_origin.append(filtered_indices[:args.select_idxnum])
+    idx_positions = defaultdict(list)
+    for list_idx, indices in enumerate(exclude_idx):
+        for pos, idx in enumerate(indices):
+            idx_positions[idx].append((list_idx, pos))
+    outputs = []
+    for idx, positions in idx_positions.items():
+        if len(positions) > 1:
+            all_positions = [pos for _, pos in positions]
+            min_position = min(all_positions)
+            output = [f"ID {idx}:"]
+
+            if min_position > args.keep_rank2:
+                # Rule 1: Remove from all lists if min position > args.keep_rank2
+                for list_idx, pos in positions:
+                    exclude_idx[list_idx][pos] = None
+                    output.append(f"list{list_idx + 1}: [{pos}] (removed)")
+            elif min_position < args.keep_rank1 and len([p for p in all_positions if p < args.keep_rank1]) >= 2:
+                # Rule 2: Remove from all lists if min position < args.keep_rank1 and occurs two or more times
+                for list_idx, pos in positions:
+                    exclude_idx[list_idx][pos] = None
+                    output.append(f"list{list_idx + 1}: [{pos}] (removed)")
+            elif min_position < args.keep_rank1 and len([p for p in all_positions if p < args.keep_rank1]) == 1:
+                # Rule 3: Keep in the list with min position < args.keep_rank1, remove from others
+                for list_idx, pos in positions:
+                    if pos == min_position:
+                        output.append(f"list{list_idx + 1}: [{pos}] (keep)")
+                    else:
+                        exclude_idx[list_idx][pos] = None
+                        output.append(f"list{list_idx + 1}: [{pos}] (removed)")
+            elif args.keep_rank1 <= min_position <= args.keep_rank2:
+                # Rule 4: Keep first occurrence between args.keep_rank1-args.keep_rank2, remove from others
+                first_occurrence = True
+                for list_idx, pos in positions:
+                    if first_occurrence and args.keep_rank1 <= pos <= args.keep_rank2:
+                        output.append(f"list{list_idx + 1}: [{pos}] (keep)")
+                        first_occurrence = False
+                    else:
+                        exclude_idx[list_idx][pos] = None
+                        output.append(f"list{list_idx + 1}: [{pos}] (removed)")
+            outputs.append(" ".join(output))
+
+    if print_eli:
+        print("\t||".join(outputs))
+    # Remove None values from exclude_idx lists
+    exclude_idx = [[idx for idx in indices if idx is not None] for indices in exclude_idx]
+
+    return sum(exclude_idx,[]), [len(templist) for templist in exclude_idx]
+
+
+def create_vocab_access_stages(vocab, num_stages, incre_only=False, base_ratio=0.5, exclude_idx = [], keep_base_id=False):
+    vocab_items = sorted(vocab.vocab.items(), key=lambda x: x[1])
+    special_symbols = vocab_items[-3:]
+    normal_items = [item for item in vocab_items[:-3] if item[1] not in exclude_idx] ##exclude some imp id
+    if keep_base_id:
+        base_vocab_indices = [item[1] for item in normal_items]
+        base_vocab_indices.extend([item[1] for item in special_symbols])
+        stage_tokens_indices = [base_vocab_indices[:] for _ in range(num_stages)]
+        return stage_tokens_indices
+    else:
+        total_size = len(normal_items)
+        if num_stages==1:
+            full_vocab_indices = [item[1] for item in normal_items]
+            full_vocab_indices.extend([item[1] for item in special_symbols])
+            return [full_vocab_indices]
+        base_size = int(total_size * base_ratio)
+        remaining_size = total_size - base_size
+        remaining_items = torch.Tensor([item[1] for item in normal_items]).long()
+        indices = np.random.permutation(remaining_items.size(0))
+        base_tokens_indices = remaining_items[indices[:base_size]].tolist()
+        remaining_indices = remaining_items[indices[base_size:]].tolist()
+        base_tokens_indices.extend([item[1] for item in special_symbols])
+        stage_tokens_indices = [base_tokens_indices.copy()]
+        increment_per_stage = remaining_size // (num_stages - 1)
+        start_idx = 0
+        for i in range(num_stages - 1):
+            end_idx = start_idx + increment_per_stage + (1 if i < remaining_size % (num_stages - 1) else 0)
+            additional_tokens_indices = remaining_indices[start_idx:end_idx]
+            if incre_only:
+                current_stage_tokens_indices = additional_tokens_indices + [item[1] for item in special_symbols]
+            else:
+                current_stage_tokens_indices = stage_tokens_indices[-1] + additional_tokens_indices
+            stage_tokens_indices.append(current_stage_tokens_indices)
+            start_idx = end_idx
+    return stage_tokens_indices
+
+def distribute_exclude_indices(stage_tokens_indices, exclude_idx, num_per_stage=None, incre_only=False):
+    num_stages = len(stage_tokens_indices)
+    num_exclude = len(exclude_idx)
+    if num_per_stage is None:
+        num_per_stage = [num_exclude // num_stages] * num_stages
+        for i in range(num_exclude % num_stages):
+            num_per_stage[i] += 1
+    else:
+        if len(num_per_stage) < num_stages:
+            num_per_stage.extend([0] * (num_stages - len(num_per_stage)))
+        elif len(num_per_stage) > num_stages:
+            num_per_stage = num_per_stage[:num_stages]
+        total_required = sum(num_per_stage)
+        if total_required > num_exclude:
+            raise ValueError("指定的 num_per_stage 超过了 exclude_idx 的可用数量。")
+    end_idx, start_idx = 0, 0
+    for i, count in enumerate(num_per_stage):
+        if incre_only:
+            end_idx = start_idx + count
+            stage_tokens_indices[i].extend(exclude_idx[start_idx:end_idx])
+            start_idx = end_idx
+        else:
+            end_idx = end_idx + count
+            stage_tokens_indices[i].extend(exclude_idx[:end_idx])
+    return stage_tokens_indices
+
+def aggregate_counts(select_counts, num_stages):
+    base_size = len(select_counts) // num_stages
+    remainder = len(select_counts) % num_stages
+    result = []
+    start_index = 0
+    for i in range(num_stages):
+        end_index = start_index + base_size + (1 if i < remainder else 0)
+        result.append(sum(select_counts[start_index:end_index]))
+        start_index = end_index
+    return result
+
 def load_model_origin(model=None, args=None, model_path=None):
     model_dir = Path(model_path)
     model_config_file = model_dir / "args.json"
