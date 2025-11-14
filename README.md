@@ -25,7 +25,7 @@ If you find this work useful in your research, please kindly consider citing:
   booktitle={BIBM},
   year={2025}
 }
-@inproceedings{qi2025scincre,
+@inproceedings{qi2026scincre,
   title={Gene Incremental Learning for Single-Cell Transcriptomics},
   author={Qi, Jiaxin and Cui, Yan and Huang, Jianqiang and Xie, Gaogang},
   booktitle={AAAI},
