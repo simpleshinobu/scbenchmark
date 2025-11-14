@@ -33,13 +33,13 @@ If you find this work useful in your research, please kindly consider citing:
 For BIBM 2025, please just change --model_structure transformer as gnn_cp (gnn_for_compare), whose performance is comparable to Transformers!
 For AAAI 2026, the incremental setting, 
 Please run the following for incremental learning
-'''
+```
 CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch  --nproc_per_node=2 --nnodes=1   --node_rank=0  --master_addr="localhost"   --master_port=6200 incremental_train.py -s ./save_incre/temp --use_weighted_sampling  --num_stages 3  --select_idxnum 150 --keep_base_id  --filter_names norman lupus --incre_only --epochs 5 --lr 5e-4 --excludefin
-'''
+```
 Then, run the following for evaluations (for the same incremental datasets)
-'''
+```
 CUDA_VISIBLE_DEVICES=7 python incre_downstreams.py --model_dir ./save_incre/temp   --train_from_features --use_weighted_sampling --num_trials 3 --filter_names norman lupus
-'''
+```
 ### Prepare Data and Env
 
 Directly download our preprocessed data:
