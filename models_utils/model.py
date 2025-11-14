@@ -3,6 +3,7 @@ from torch import nn, Tensor
 import numpy as np
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from .cnn_base import CNNModel as CNNBase
+from .gnn_cp import GNN_cp
 from .Linear import LinearModel as LinearModel_Ours
 from .Linear_base import LinearModel_Base
 # from .mamba_model import Mamba #please download mamba before use it!
@@ -28,6 +29,8 @@ class scModel(nn.Module):
             self.encoder = TransformerEncoder(encoder_layers, args.nlayers)
         elif self.args.model_structure == "mamba":
             self.encoder = Mamba(d_model, args.nlayers, args=args)
+        elif self.args.model_structure == "gnn_cp":
+            self.encoder = GNN_cp(d_model, d_model, args.nlayers, args.dropout, args, ntoken)
         elif self.args.model_structure in ["cnn_base", "cnn_ours"]:
             self.encoder = CNNBase(d_model, args.nlayers, args.dropout, args)
         elif self.args.model_structure in ["linear_ours"]:
